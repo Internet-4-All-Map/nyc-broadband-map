@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NYC Internet For All</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* side panel */
+    #panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 9999;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, .18);
+      padding: 14px 14px 10px;
+      max-width: 320px;
+      font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    #panel .row {
+      margin-bottom: 10px;
+    }
+
+    #panel .hdr {
+      font-weight: 700;
+      margin: 8px 0;
+    }
+
+    #panel .lab {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #panel input[type="range"] {
+      width: 100%;
+    }
+
+    #panel hr {
+      border: none;
+      border-top: 1px solid #eee;
+      margin: 10px 0;
+    }
+
+    /* legend swatches */
+    .sw {
+      display: inline-block;
+      width: 18px;
+      height: 12px;
+      margin-right: 6px;
+      border: 1px solid #999;
+      vertical-align: middle
+    }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 50%;
+      vertical-align: middle
+    }
+
+    /* status note */
+    #status {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 9999;
+      background: #111;
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      opacity: .92;
+      font: 12px/1.3 system-ui, Arial;
+      max-width: 50vw;
+    }
+
+    @media (max-width: 768px) {
+      #panel {
+        max-width: 88vw;
+        right: 8px;
+        left: 8px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <!-- side panel -->
+  <div id="panel">
+    <div class="hdr">Layers, Opacity & Toggles</div>
+
+    <div class="row">
+      <div class="lab">
+        <label><input id="cbNoNet" type="checkbox" checked> Households w/o Internet (%)</label>
+        <span id="lblNoNet">0.75</span>
+      </div>
+      <input id="opNoNet" type="range" min="0" max="1" step="0.05" value="0.75" />
+    </div>
+
+    <div class="row">
+      <div class="lab">
+        <label><input id="cbIncome" type="checkbox" checked> Median Household Income</label>
+        <span id="lblIncome">0.35</span>
+      </div>
+      <input id="opIncome" type="range" min="0" max="1" step="0.05" value="0.35" />
+    </div>
+
+    <div class="row">
+      <div class="lab">
+        <label><input id="cbZohran" type="checkbox" checked> Zohran Win Margin</label>
+        <span id="lblZohran">0.25</span>
+      </div>
+      <input id="opZohran" type="range" min="0" max="1" step="0.05" value="0.25" />
+    </div>
+
+    <div class="row">
+      <div class="lab">
+        <label><input id="cbAssets" type="checkbox" checked> Public Assets</label>
+        <span id="lblAssets">1.0</span>
+      </div>
+      <input id="opAssets" type="range" min="0" max="1" step="0.05" value="1.0" />
+    </div>
+
+    <div class="row">
+      <div class="hdr" style="margin-top:6px">Asset Filters</div>
+      <label><input type="checkbox" id="fY" checked> Connected to fiber = Y</label><br />
+      <label><input type="checkbox" id="fN" checked> Connected to fiber = N</label><br />
+      <label><input type="checkbox" id="fU" checked> Connected to fiber = Unknown</label>
+    </div>
+
+    <hr>
+
+    <div id="legend">
+      <div class="hdr">Legends</div>
+
+      <div id="legendNoNet" style="margin-top:8px">
+        <div style="font-weight:600;margin-bottom:4px">Households w/o Internet (%)</div>
+        <div><span class="sw" style="background:#FDEBD0"></span> 0–5</div>
+        <div><span class="sw" style="background:#FAD7A0"></span> 5–10</div>
+        <div><span class="sw" style="background:#F5B041"></span> 10–15</div>
+        <div><span class="sw" style="background:#DC7633"></span> 15–20</div>
+        <div><span class="sw" style="background:#A04000"></span> 20%+</div>
+        <div><span class="sw"
+            style="background:repeating-linear-gradient(45deg,#000,#000 4px,#fff 4px,#fff 8px)"></span> No data</div>
+      </div>
+
+      <div id="legendIncome" style="margin-top:10px">
+        <div style="font-weight:600;margin-bottom:4px">Median Household Income ($)</div>
+        <div><span class="sw" style="background:#f7fbff"></span> 0–35k</div>
+        <div><span class="sw" style="background:#c6dbef"></span> 35–60k</div>
+        <div><span class="sw" style="background:#6baed6"></span> 60–90k</div>
+        <div><span class="sw" style="background:#2171b5"></span> 90–140k</div>
+        <div><span class="sw" style="background:#08306b"></span> 140k+</div>
+        <div><span class="sw"
+            style="background:repeating-linear-gradient(45deg,#000,#000 4px,#fff 4px,#fff 8px)"></span> No data</div>
+      </div>
+
+      <div id="legendZohran" style="margin-top:10px">
+        <div style="font-weight:600;margin-bottom:4px">Zohran margin (pct points)</div>
+        <div><span class="sw" style="background:#fee5d9"></span> -5 to 0</div>
+        <div><span class="sw" style="background:#fcae91"></span> 0–10</div>
+        <div><span class="sw" style="background:#fb6a4a"></span> 10–20</div>
+        <div><span class="sw" style="background:#de2d26"></span> 20–35</div>
+        <div><span class="sw" style="background:#a50f15"></span> 35+</div>
+      </div>
+
+      <div id="legendAssets" style="margin-top:10px">
+        <div style="font-weight:600;margin-bottom:4px">Public Assets</div>
+        <div><span class="dot" style="background:#2b8cbe"></span> Asset</div>
+        <div><span class="dot" style="background:#41ae76"></span> Connected to fiber</div>
+        <div><span class="dot" style="background:#de2d26"></span> Not connected</div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div style="font-size:12px;color:#666">
+      Sources: ACS 2019–2023 (Census API), NYC OpenData Office of Technology and Innovation (OTI).
+      <br />
+      CRS: EPSG:4326.
+    </div>
+  </div>
+
+  <div id="status">Loading…</div>
+
+  <script>
+    // CONFIG
+    const PATHS = {
+      tracts: 'data/nyc_acs_income_internet_2023_tracts.geojson',
+      zohran: 'data/zohran_win_by_ed.geojson',
+      assets: 'data/usb_assets_clean.geojson'
+    };
+
+    const FIELDS = {
+      noInternetPct: 'pct_no_internet',
+      medianIncome: 'median_income',
+      hhTotal: 'households_total',
+      tractName: 'NAME',
+      zohranMargin: 'mamdani__4',
+      edName: 'ElectDist',
+      assetFiber: 'connected_to_fiber', // 'Y'/'N'/unknown
+      assetName: 'name'
+    };
+
+    // Map
+
+    const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([40.72, -73.96], 11);
+    const canvasRenderer = L.canvas({ padding: 0.5 });
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 20, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    L.control.scale({ imperial: false }).addTo(map);
+
+    // panes order
+    map.createPane('pane-nointernet'); map.getPane('pane-nointernet').style.zIndex = 410;
+    map.createPane('pane-income'); map.getPane('pane-income').style.zIndex = 420;
+    map.createPane('pane-zohran'); map.getPane('pane-zohran').style.zIndex = 430;
+    map.createPane('pane-assets'); map.getPane('pane-assets').style.zIndex = 440;
+    map.getPane('pane-nointernet').style.mixBlendMode = 'multiply';
+    map.getPane('pane-income').style.mixBlendMode = 'multiply';
+
+    // global refs
+    let noInternetLayer, incomeLayer, zohranLayer, assetsCluster;
+    let tractsFC = null, zohranFC = null, assetsFC = null;
+
+    const statusEl = document.getElementById('status');
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    // Styling helpers
+    const isNoData = (v) => v === null || v === undefined || v === '' || Number(v) === -666666666;
+
+    function colorNoInternet(pct) {
+      if (pct >= 20) return '#A04000';
+      if (pct >= 15) return '#DC7633';
+      if (pct >= 10) return '#F5B041';
+      if (pct >= 5) return '#FAD7A0';
+      return '#FDEBD0';
+    }
+    function colorIncome(val) {
+      if (val >= 140000) return '#08306b';
+      if (val >= 90000) return '#2171b5';
+      if (val >= 60000) return '#6baed6';
+      if (val >= 35000) return '#c6dbef';
+      return '#f7fbff';
+    }
+    function colorZohran(m) {
+      if (m > 35) return '#a50f15';
+      if (m > 20) return '#de2d26';
+      if (m > 10) return '#fb6a4a';
+      if (m > 0) return '#fcae91';
+      return '#fee5d9';
+    }
+
+    function styleNoInternet(f) {
+      const v = f.properties[FIELDS.noInternetPct];
+      return {
+        renderer: canvasRenderer,
+        pane: 'pane-nointernet',
+        color: '#555', weight: 0.6, opacity: 1,
+        fill: true, fillOpacity: Number(document.getElementById('opNoNet').value || 0.75),
+        fillColor: isNoData(v) ? '#ffffff' : colorNoInternet(+v),
+        interactive: false, smoothFactor: 0.2
+      };
+    }
+    function styleIncome(f) {
+      const v = f.properties[FIELDS.medianIncome];
+      return {
+        renderer: canvasRenderer,
+        pane: 'pane-income',
+        color: '#444', weight: 0.6, opacity: 1,
+        fill: true, fillOpacity: Number(document.getElementById('opIncome').value || 0.35),
+        fillColor: isNoData(v) ? '#ffffff' : colorIncome(+v),
+        interactive: false, smoothFactor: 0.2
+      };
+    }
+    function styleZohran(f) {
+      const v = f.properties[FIELDS.zohranMargin];
+      return {
+        renderer: canvasRenderer,
+        pane: 'pane-zohran',
+        color: '#222', weight: 0.7, opacity: 1,
+        fill: true, fillOpacity: Number(document.getElementById('opZohran').value || 0.25),
+        fillColor: (v === null || v === undefined || isNaN(v)) ? '#ddd' : colorZohran(+v),
+        interactive: false, smoothFactor: 0.2
+      };
+    }
+
+    // point symbol
+    function assetColor(flag) {
+      const v = (flag || '').toString().trim().toUpperCase();
+      if (v === 'Y') return '#41ae76';
+      if (v === 'N') return '#de2d26';
+      return '#2b8cbe';
+    }
+
+    // Build assets
+    function buildAssetsLayer(features, filters) {
+      const layer = L.geoJSON(features, {
+        pane: 'pane-assets',
+        pointToLayer: (f, latlng) => {
+          const raw = (f.properties[FIELDS.assetFiber] || '').toString().trim().toUpperCase();
+          const cat = raw === 'Y' ? 'Y' : (raw === 'N' ? 'N' : 'U');
+          if (!filters[cat]) return null;
+          const op = Number(document.getElementById('opAssets').value || 1);
+          return L.circleMarker(latlng, {
+            radius: 5, color: '#222', weight: 1,
+            fillColor: assetColor(raw), fillOpacity: op, opacity: Math.max(op, 0.15)
+          });
+        },
+        filter: (f) => {
+          const raw = (f.properties[FIELDS.assetFiber] || '').toString().trim().toUpperCase();
+          const cat = raw === 'Y' ? 'Y' : (raw === 'N' ? 'N' : 'U');
+          return !!filters[cat];
+        }
+      });
+      return layer;
+    }
+
+    // Load & init
+    async function loadJSON(path) {
+      const r = await fetch(path);
+      if (!r.ok) throw new Error(`${path}: ${r.status} ${r.statusText}`);
+      return await r.json();
+    }
+
+    (async function init() {
+      try {
+        setStatus('Loading data…');
+        const [tracts, zohran, assets] = await Promise.all([
+          loadJSON(PATHS.tracts),
+          loadJSON(PATHS.zohran),
+          loadJSON(PATHS.assets)
+        ]);
+        tractsFC = tracts; zohranFC = zohran; assetsFC = assets;
+
+        // polygon layers (same tracts FC used twice for different styles)
+        noInternetLayer = L.geoJSON(tractsFC, { style: styleNoInternet, pane: 'pane-nointernet' }).addTo(map);
+        incomeLayer = L.geoJSON(tractsFC, { style: styleIncome, pane: 'pane-income' }).addTo(map);
+        zohranLayer = L.geoJSON(zohranFC, { style: styleZohran, pane: 'pane-zohran' }).addTo(map);
+
+        // clustered assets
+        assetsCluster = L.markerClusterGroup({
+          disableClusteringAtZoom: 16,
+          spiderfyOnMaxZoom: false,
+          showCoverageOnHover: false,
+          chunkedLoading: true, // perf
+          chunkProgress: () => { }
+        });
+        const assetsLayer = buildAssetsLayer(assetsFC, { Y: true, N: true, U: true });
+        assetsCluster.addLayer(assetsLayer).addTo(map);
+
+        // fit bounds
+        const all = L.featureGroup([noInternetLayer, incomeLayer, zohranLayer, assetsCluster]);
+        try { map.fitBounds(all.getBounds(), { padding: [10, 10] }); } catch (e) { }
+
+        setStatus('Loaded.');
+
+        // Sliders + checkboxes
+        function bindSlider(id, labelId, onChange) {
+          const input = document.getElementById(id);
+          const label = document.getElementById(labelId);
+          const f = () => { label.textContent = input.value; onChange(parseFloat(input.value)); };
+          input.addEventListener('input', f); f();
+        }
+        const setPolyOpacity = (layer, v) => layer.setStyle({ fillOpacity: v });
+        bindSlider('opNoNet', 'lblNoNet', v => setPolyOpacity(noInternetLayer, v));
+        bindSlider('opIncome', 'lblIncome', v => setPolyOpacity(incomeLayer, v));
+        bindSlider('opZohran', 'lblZohran', v => setPolyOpacity(zohranLayer, v));
+        bindSlider('opAssets', 'lblAssets', v => {
+          // walk cluster to update marker opacity
+          assetsCluster.eachLayer(child => {
+            if (child.eachLayer) return; // cluster shell
+            if (child.setStyle) child.setStyle({ opacity: Math.max(v, 0.15), fillOpacity: v });
+          });
+        });
+
+        // layer on/off
+        function showLegend(id, show) { document.getElementById(id).style.display = show ? '' : 'none'; }
+
+        document.getElementById('cbNoNet').addEventListener('change', (e) => {
+          e.target.checked ? map.addLayer(noInternetLayer) : map.removeLayer(noInternetLayer);
+          showLegend('legendNoNet', e.target.checked);
+        });
+        document.getElementById('cbIncome').addEventListener('change', (e) => {
+          e.target.checked ? map.addLayer(incomeLayer) : map.removeLayer(incomeLayer);
+          showLegend('legendIncome', e.target.checked);
+        });
+        document.getElementById('cbZohran').addEventListener('change', (e) => {
+          e.target.checked ? map.addLayer(zohranLayer) : map.removeLayer(zohranLayer);
+          showLegend('legendZohran', e.target.checked);
+        });
+        document.getElementById('cbAssets').addEventListener('change', (e) => {
+          e.target.checked ? map.addLayer(assetsCluster) : map.removeLayer(assetsCluster);
+          showLegend('legendAssets', e.target.checked);
+        });
+
+        // asset filters
+        const chkY = document.getElementById('fY');
+        const chkN = document.getElementById('fN');
+        const chkU = document.getElementById('fU');
+        function refreshAssets() {
+          assetsCluster.clearLayers();
+          const f = { Y: chkY.checked, N: chkN.checked, U: chkU.checked };
+          const newLayer = buildAssetsLayer(assetsFC, f);
+          assetsCluster.addLayer(newLayer);
+        }
+        chkY.addEventListener('change', refreshAssets);
+        chkN.addEventListener('change', refreshAssets);
+        chkU.addEventListener('change', refreshAssets);
+
+        // Combined popup on map click
+        map.on('click', (e) => {
+          const pt = [e.latlng.lng, e.latlng.lat]; // turf expects [x, y] => [lon, lat]
+          let parts = [];
+
+          // find tract at click
+          let tractHit = null;
+          for (const f of tractsFC.features) {
+            try { if (turf.booleanPointInPolygon(pt, f)) { tractHit = f; break; } } catch { }
+          }
+          if (tractHit) {
+            const name = tractHit.properties[FIELDS.tractName] || tractHit.properties.NAME || tractHit.properties.GEOID || 'Census tract';
+            const hh = tractHit.properties[FIELDS.hhTotal];
+            const pct = tractHit.properties[FIELDS.noInternetPct];
+            const inc = tractHit.properties[FIELDS.medianIncome];
+            parts.push(`<b>${name}</b>
+            <div>Households: ${hh ?? '—'}</div>
+            <div>% without Internet: ${pct ?? '—'}</div>
+            <div>Median income: ${inc && inc !== -666666666 ? ('$' + Number(inc).toLocaleString()) : 'No data'}</div>`);
+          }
+
+          // find Zohran district at click
+          let edHit = null;
+          for (const f of zohranFC.features) {
+            try { if (turf.booleanPointInPolygon(pt, f)) { edHit = f; break; } } catch { }
+          }
+          if (edHit) {
+            const edName = edHit.properties[FIELDS.edName] || 'District';
+            const margin = edHit.properties[FIELDS.zohranMargin];
+            parts.push(`<b>${edName}</b><div>Zohran margin: ${margin !== undefined && margin !== null ? Number(margin).toFixed(1) : '—'} pts</div>`);
+          }
+
+          // nearby assets (within 150m), list up to 5
+          try {
+            const nearby = [];
+            for (const f of assetsFC.features) {
+              if (!f.geometry || f.geometry.type !== 'Point') continue;
+              const dKm = turf.distance(pt, f, { units: 'kilometers' });
+              if (dKm <= 0.15) nearby.push({ f, dKm });
+            }
+            nearby.sort((a, b) => a.dKm - b.dKm);
+            if (nearby.length) {
+              const list = nearby.slice(0, 5).map(a => {
+                const nm = a.f.properties[FIELDS.assetName] || 'Asset';
+                const cf = a.f.properties[FIELDS.assetFiber] ?? 'Unknown';
+                const m = (a.dKm * 1000).toFixed(0);
+                return `<li>${nm} — fiber: ${cf} <span style="color:#666">(${m} m)</span></li>`;
+              }).join('');
+              parts.push(`<b>Nearby public assets (≤150m)</b><ul style="margin:4px 0 0 16px">${list}</ul>`);
+            }
+          } catch { }
+
+          const html = parts.length ? parts.join('<hr style="border:none;border-top:1px solid #eee;margin:8px 0">') : 'No data here.';
+          L.popup().setLatLng(e.latlng).setContent(html).openOn(map);
+        });
+
+      } catch (err) {
+        console.error(err);
+        setStatus('Error: ' + err.message + ' — check that your data files exist in /data and are valid GeoJSON (CRS EPSG:4326).');
+      }
+    })();
+  </script>
+
+</body>
+
+</html>

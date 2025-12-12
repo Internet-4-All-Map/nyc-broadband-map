@@ -34,7 +34,7 @@
       font-size: 22px;
     }
 
-    /* OVERLAY PANEL — does NOT extend page size */
+    /* OVERLAY PANEL */
     #panel {
       position: absolute;
       top: 12px;
@@ -47,25 +47,23 @@
       box-shadow: 0 2px 14px rgba(0,0,0,.22);
       font: 14px system-ui, sans-serif;
 
-      /* Start hidden as a collapsed bubble */
-      opacity: 0;
-      transform: scale(0.7);
-      pointer-events: none;
+      /* Start OPEN now (not collapsed) */
+      opacity: 1;                
+      transform: scale(1);      
+      pointer-events: auto;    
       transition: opacity .2s ease, transform .2s ease;
     }
 
-    #panel.open {
-      opacity: 1;
-      transform: scale(1);
-      pointer-events: auto;
+    #panel.closed {             
+      opacity: 0;
+      transform: scale(0.7);
+      pointer-events: none;
     }
 
     .sw { display:inline-block;width:18px;height:12px;margin-right:6px;border:1px solid #999; }
 
     @media (max-width: 768px) {
-      #panel {
-        width: 80vw;
-      }
+      #panel { width: 80vw; }
     }
   </style>
 </head>
@@ -77,7 +75,7 @@
   <!-- Floating settings button -->
   <div id="togglePanelBtn">⚙️</div>
 
-  <!-- Popup overlay panel -->
+  <!-- Popup overlay panel (OPEN by default now) -->
   <div id="panel">
     <div style="font-weight:700;margin-bottom:6px;">Households w/o Internet (%)</div>
 
@@ -106,7 +104,7 @@
   const btn = document.getElementById("togglePanelBtn");
 
   btn.addEventListener("click", () => {
-    panel.classList.toggle("open");
+    panel.classList.toggle("closed");  
   });
 
   // MAP --------------------------------
@@ -119,7 +117,14 @@
     fullscreenControl: true
   }).setView([40.72,-73.96],11);
 
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20 }).addTo(map);
+  L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: "abcd",
+      maxZoom: 20
+    }
+  ).addTo(map);
 
   map.createPane("pane-nointernet");
   map.getPane("pane-nointernet").style.zIndex = 410;
@@ -162,7 +167,7 @@
   slider.addEventListener("input", () => {
     opacity = parseFloat(slider.value);
     label.textContent = slider.value;
-    if(layer){ layer.setStyle({ fillOpacity: opacity }); }
+    if(layer) layer.setStyle({ fillOpacity: opacity });
   });
 
   document.getElementById("cbNoNet").addEventListener("change", e => {

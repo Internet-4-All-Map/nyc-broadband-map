@@ -87,11 +87,11 @@
     <input id="opNoNet" type="range" min="0" max="1" step="0.05" value="0.75"/>
 
     <div style="margin-top:12px;font-weight:600;">Legend</div>
-    <div><span class="sw" style="background:#FDEBD0"></span> 0–5%</div>
-    <div><span class="sw" style="background:#FAD7A0"></span> 5–10%</div>
-    <div><span class="sw" style="background:#F5B041"></span> 10–15%</div>
-    <div><span class="sw" style="background:#DC7633"></span> 15–20%</div>
-    <div><span class="sw" style="background:#A04000"></span> 20%+</div>
+    <div><span class="sw" style="background:#ffe8d8"></span> 0–5%</div>
+    <div><span class="sw" style="background:#ffb785"></span> 5–10%</div>
+    <div><span class="sw" style="background:#ff8029"></span> 10–15%</div>
+    <div><span class="sw" style="background:#ff8029"></span> 15–20%</div>
+    <div><span class="sw" style="background:#FF6800"></span> 20%+</div>
 
     <div style="font-size:12px;color:#666;margin-top:10px;">
       Source: ACS 2019–2023
@@ -133,11 +133,11 @@
   let opacity = 0.75;
 
   function colorNoInternet(p){
-    if(p>=20) return "#A04000";
-    if(p>=15) return "#DC7633";
-    if(p>=10) return "#F5B041";
-    if(p>=5) return "#FAD7A0";
-    return "#FDEBD0";
+    if(p>=20) return "#FF6800";
+    if(p>=15) return "#ff8029";
+    if(p>=10) return "#ff8029";
+    if(p>=5) return "#ffb785";
+    return "#ffe8d8";
   }
 
   function style(f){

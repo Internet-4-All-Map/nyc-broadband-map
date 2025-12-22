@@ -5,16 +5,23 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>NYC – Households w/o Internet</title>
 
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Fullscreen -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@1.6.0/Control.FullScreen.css"/>
-  <script src="https://unpkg.com/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script>
-
   <style>
-    html, body { height: 100%; margin: 0; overflow-x: hidden; }
-    #map { position:absolute; inset:0; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+    }
 
     /* Floating toggle button */
     #togglePanelBtn {
@@ -34,7 +41,7 @@
       font-size: 22px;
     }
 
-    /* OVERLAY PANEL */
+    /* Overlay panel (never affects layout width) */
     #panel {
       position: absolute;
       top: 12px;
@@ -47,80 +54,99 @@
       box-shadow: 0 2px 14px rgba(0,0,0,.22);
       font: 14px system-ui, sans-serif;
 
-      /* Start OPEN now (not collapsed) */
-      opacity: 1;                
-      transform: scale(1);      
-      pointer-events: auto;    
+      /* OPEN BY DEFAULT */
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
       transition: opacity .2s ease, transform .2s ease;
     }
 
-    #panel.closed {             
+    #panel.closed {
       opacity: 0;
       transform: scale(0.7);
       pointer-events: none;
     }
 
-    .sw { display:inline-block;width:18px;height:12px;margin-right:6px;border:1px solid #999; }
+    .sw {
+      display:inline-block;
+      width:18px;
+      height:12px;
+      margin-right:6px;
+      border:1px solid #999;
+    }
 
     @media (max-width: 768px) {
-      #panel { width: 80vw; }
+      #panel {
+        width: 80vw;
+      }
     }
   </style>
 </head>
 
 <body>
 
-  <div id="map"></div>
+<div id="map"></div>
 
-  <!-- Floating settings button -->
-  <div id="togglePanelBtn">⚙️</div>
+<!-- Toggle button -->
+<div id="togglePanelBtn">⚙️</div>
 
-  <!-- Popup overlay panel (OPEN by default now) -->
-  <div id="panel">
-    <div style="font-weight:700;margin-bottom:6px;">Households w/o Internet (%)</div>
-
-    <label><input id="cbNoNet" type="checkbox" checked> Show layer</label>
-
-    <div style="margin-top:10px;display:flex;justify-content:space-between;">
-      <span>Opacity</span><span id="lblNoNet">0.75</span>
-    </div>
-    <input id="opNoNet" type="range" min="0" max="1" step="0.05" value="0.75"/>
-
-    <div style="margin-top:12px;font-weight:600;">Legend</div>
-    <div><span class="sw" style="background:#ffe8d8"></span> 0–5%</div>
-    <div><span class="sw" style="background:#ffb785"></span> 5–10%</div>
-    <div><span class="sw" style="background:#ff8029"></span> 10–15%</div>
-    <div><span class="sw" style="background:#ff8029"></span> 15–20%</div>
-    <div><span class="sw" style="background:#FF6800"></span> 20%+</div>
-
-    <div style="font-size:12px;color:#666;margin-top:10px;">
-      Source: ACS 2019–2023
-    </div>
+<!-- Overlay panel -->
+<div id="panel">
+  <div style="font-weight:700;margin-bottom:6px;">
+    Households w/o Internet (%)
   </div>
 
+  <label>
+    <input id="cbNoNet" type="checkbox" checked>
+    Show layer
+  </label>
+
+  <div style="margin-top:10px;display:flex;justify-content:space-between;">
+    <span>Opacity</span>
+    <span id="lblNoNet">1.0</span>
+  </div>
+  <input id="opNoNet" type="range" min="0" max="1" step="0.05" value="1.0"/>
+
+  <div style="margin-top:12px;font-weight:600;">Legend</div>
+  <div><span class="sw" style="background:#FFDA99"></span> 0–5%</div>
+  <div><span class="sw" style="background:#FFC04C"></span> 5–10%</div>
+  <div><span class="sw" style="background:#FFA500"></span> 10–15%</div>
+  <div><span class="sw" style="background:#FF6800"></span> 15–20%</div>
+  <div><span class="sw" style="background:#FF0000"></span> 20%+</div>
+
+  <div style="font-size:12px;color:#666;margin-top:10px;">
+    Source: ACS 2019–2023
+  </div>
+</div>
+
 <script>
-  // PANEL TOGGLE ----------------------
+  /* PANEL TOGGLE */
   const panel = document.getElementById("panel");
   const btn = document.getElementById("togglePanelBtn");
 
   btn.addEventListener("click", () => {
-    panel.classList.toggle("closed");  
+    panel.classList.toggle("closed");
   });
 
-  // MAP --------------------------------
+  /* MAP CONFIG */
   const PATH = "data/nyc_acs_income_internet_2023_tracts.geojson";
   const FIELD = "pct_no_internet";
 
   const map = L.map("map", {
     zoomControl: true,
     preferCanvas: true,
-    fullscreenControl: true
-  }).setView([40.72,-73.96],11);
+    attributionControl: false   // REMOVE BUILT-IN KEY
+  }).setView([40.73, -73.93], 12); // START ZOOMED IN
 
+  // Disable scroll zoom (page-friendly)
+  map.scrollWheelZoom.disable();
+  map.doubleClickZoom.disable();
+  map.boxZoom.disable();
+
+  // CartoDB Positron basemap
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     {
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
       subdomains: "abcd",
       maxZoom: 20
     }
@@ -130,26 +156,26 @@
   map.getPane("pane-nointernet").style.zIndex = 410;
 
   let layer = null;
-  let opacity = 0.75;
+  let opacity = 1.0;
 
-  function colorNoInternet(p){
-    if(p>=20) return "#FF6800";
-    if(p>=15) return "#ff8029";
-    if(p>=10) return "#ff8029";
-    if(p>=5) return "#ffb785";
-    return "#ffe8d8";
+  function colorNoInternet(p) {
+    if (p >= 20) return "#FF0000";
+    if (p >= 15) return "#FF6800";
+    if (p >= 10) return "#FFA500";
+    if (p >= 5)  return "#FFC04C";
+    return "#FFDA99";
   }
 
-  function style(f){
+  function style(f) {
     const v = f.properties[FIELD];
     return {
-      pane:"pane-nointernet",
-      color:"#555",
-      weight:0.6,
-      fill:true,
-      fillOpacity:opacity,
-      fillColor:colorNoInternet(+v),
-      interactive:false
+      pane: "pane-nointernet",
+      color: "#555",
+      weight: 0.6,
+      fill: true,
+      fillOpacity: opacity,
+      fillColor: colorNoInternet(+v),
+      interactive: false
     };
   }
 
@@ -157,23 +183,23 @@
     .then(r => r.json())
     .then(fc => {
       layer = L.geoJSON(fc, { style }).addTo(map);
-      map.fitBounds(layer.getBounds(), { padding:[10,10] });
     });
 
-  // Controls
+  /* CONTROLS */
   const slider = document.getElementById("opNoNet");
   const label = document.getElementById("lblNoNet");
 
   slider.addEventListener("input", () => {
     opacity = parseFloat(slider.value);
     label.textContent = slider.value;
-    if(layer) layer.setStyle({ fillOpacity: opacity });
+    if (layer) layer.setStyle({ fillOpacity: opacity });
   });
 
   document.getElementById("cbNoNet").addEventListener("change", e => {
-    if(e.target.checked) map.addLayer(layer);
+    if (e.target.checked) map.addLayer(layer);
     else map.removeLayer(layer);
   });
 </script>
+
 </body>
 </html>

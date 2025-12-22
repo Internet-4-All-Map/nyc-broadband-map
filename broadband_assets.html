@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>NYC – Public Assets</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+    }
+
+    /* Floating toggle button */
+    #togglePanelBtn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 11000;
+      background: #fff;
+      border-radius: 50%;
+      width: 46px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,.25);
+      cursor: pointer;
+      font-size: 22px;
+    }
+
+    /* Overlay panel */
+    #panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 260px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      z-index: 10999;
+      box-shadow: 0 2px 14px rgba(0,0,0,.22);
+      font: 14px system-ui, sans-serif;
+
+      /* open by default */
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    #panel.closed {
+      opacity: 0;
+      transform: scale(0.7);
+      pointer-events: none;
+    }
+
+    .dot {
+      display:inline-block;
+      width:10px;
+      height:10px;
+      margin-right:6px;
+      border-radius:50%;
+      vertical-align:middle;
+    }
+
+    @media (max-width: 768px) {
+      #panel {
+        width: 80vw;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<!-- Toggle -->
+<div id="togglePanelBtn">⚙️</div>
+
+<!-- Panel -->
+<div id="panel">
+  <div style="font-weight:700;margin-bottom:6px;">
+    Public Assets
+  </div>
+
+  <div style="margin-bottom:8px;">
+    <label><input id="cbAssets" type="checkbox" checked> Show assets</label>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;">
+    <span>Opacity</span>
+    <span id="lblAssets">1.0</span>
+  </div>
+  <input id="opAssets" type="range" min="0" max="1" step="0.05" value="1.0"/>
+
+  <div style="margin-top:10px;font-weight:600;">Filters</div>
+  <label><input type="checkbox" id="fY" checked> Fiber = Yes</label><br>
+  <label><input type="checkbox" id="fN" checked> Fiber = No</label><br>
+  <label><input type="checkbox" id="fU" checked> Fiber = Unknown</label>
+
+  <div style="margin-top:12px;font-weight:600;">Legend</div>
+  <div><span class="dot" style="background:#41ae76"></span> Connected to fiber</div>
+  <div><span class="dot" style="background:#de2d26"></span> Not connected</div>
+  <div><span class="dot" style="background:#2b8cbe"></span> Unknown</div>
+
+  <div style="font-size:12px;color:#666;margin-top:10px;">
+    Source: NYC OpenData (OTI)
+  </div>
+</div>
+
+<script>
+  /* PANEL TOGGLE */
+  const panel = document.getElementById("panel");
+  document.getElementById("togglePanelBtn")
+    .addEventListener("click", () => panel.classList.toggle("closed"));
+
+  /* MAP */
+  const PATH = "data/usb_assets_clean.geojson";
+  const FIELD_FIBER = "connected_to_fiber";
+
+  const map = L.map("map", {
+    zoomControl: true,
+    preferCanvas: true,
+    attributionControl: false
+  }).setView([40.73, -73.93], 12);
+
+  map.scrollWheelZoom.disable();
+  map.doubleClickZoom.disable();
+
+  L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    { subdomains: "abcd", maxZoom: 20 }
+  ).addTo(map);
+
+  let cluster = L.markerClusterGroup({
+    disableClusteringAtZoom: 16,
+    showCoverageOnHover: false
+  });
+
+  let assetsFC = null;
+  let opacity = 1.0;
+
+  function assetColor(v) {
+    const x = (v || "").toUpperCase();
+    if (x === "Y") return "#41ae76";
+    if (x === "N") return "#de2d26";
+    return "#2b8cbe";
+  }
+
+  function buildLayer() {
+    cluster.clearLayers();
+
+    const showY = document.getElementById("fY").checked;
+    const showN = document.getElementById("fN").checked;
+    const showU = document.getElementById("fU").checked;
+
+    const layer = L.geoJSON(assetsFC, {
+      pointToLayer: (f, latlng) => {
+        const raw = (f.properties[FIELD_FIBER] || "").toUpperCase();
+        const cat = raw === "Y" ? "Y" : raw === "N" ? "N" : "U";
+
+        if ((cat === "Y" && !showY) ||
+            (cat === "N" && !showN) ||
+            (cat === "U" && !showU)) return null;
+
+        return L.circleMarker(latlng, {
+          radius: 5,
+          color: "#222",
+          weight: 1,
+          fillColor: assetColor(raw),
+          fillOpacity: opacity,
+          opacity: Math.max(opacity, 0.2)
+        });
+      }
+    });
+
+    cluster.addLayer(layer);
+  }
+
+  fetch(PATH)
+    .then(r => r.json())
+    .then(fc => {
+      assetsFC = fc;
+      buildLayer();
+      map.addLayer(cluster);
+    });
+
+  /* CONTROLS */
+  const slider = document.getElementById("opAssets");
+  const label = document.getElementById("lblAssets");
+
+  slider.addEventListener("input", () => {
+    opacity = parseFloat(slider.value);
+    label.textContent = slider.value;
+    buildLayer();
+  });
+
+  document.getElementById("cbAssets").addEventListener("change", e => {
+    if (e.target.checked) map.addLayer(cluster);
+    else map.removeLayer(cluster);
+  });
+
+  ["fY","fN","fU"].forEach(id =>
+    document.getElementById(id).addEventListener("change", buildLayer)
+  );
+</script>
+
+</body>
+</html>

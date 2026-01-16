@@ -86,6 +86,29 @@
         width: 80vw;
       }
     }
+
+    /* =========================================================
+       UNIFORM CLUSTER COLORS (override MarkerCluster defaults)
+       ========================================================= */
+
+    /* Outer circle background (all sizes) */
+    .marker-cluster-small,
+    .marker-cluster-medium,
+    .marker-cluster-large {
+      background-color: rgba(43, 140, 190, 0.55) !important; /* blue */
+    }
+
+    /* Inner circle + text (all sizes) */
+    .marker-cluster-small div,
+    .marker-cluster-medium div,
+    .marker-cluster-large div {
+      background-color: rgba(43, 140, 190, 0.90) !important; /* blue */
+      color: #fff !important;
+      font-weight: 700;
+      border-radius: 50%;
+      /* Optional: subtle border for contrast */
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.15) inset;
+    }
   </style>
 </head>
 

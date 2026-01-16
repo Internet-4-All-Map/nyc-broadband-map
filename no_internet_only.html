@@ -23,7 +23,7 @@
       background: #fff;
     }
 
-    /* Floating toggle button */
+    /* Floating toggle button (kept, but does nothing unless you add a panel) */
     #togglePanelBtn {
       position: absolute;
       top: 12px;
@@ -39,167 +39,150 @@
       box-shadow: 0 2px 10px rgba(0,0,0,.25);
       cursor: pointer;
       font-size: 22px;
-    }
-
-    /* Overlay panel (never affects layout width) */
-    #panel {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 260px;
-      background: #fff;
-      border-radius: 12px;
-      padding: 14px;
-      z-index: 10999;
-      box-shadow: 0 2px 14px rgba(0,0,0,.22);
-      font: 14px system-ui, sans-serif;
-
-      /* OPEN BY DEFAULT */
-      opacity: 1;
-      transform: scale(1);
-      pointer-events: auto;
-      transition: opacity .2s ease, transform .2s ease;
-    }
-
-    #panel.closed {
-      opacity: 0;
-      transform: scale(0.7);
-      pointer-events: none;
-    }
-
-    .sw {
-      display:inline-block;
-      width:18px;
-      height:12px;
-      margin-right:6px;
-      border:1px solid #999;
-    }
-
-    @media (max-width: 768px) {
-      #panel {
-        width: 80vw;
-      }
+      user-select: none;
     }
   </style>
 </head>
 
 <body>
+  <div id="map"></div>
 
-<div id="map"></div>
+  <!-- Toggle button -->
+  <div id="togglePanelBtn" title="Info">i</div>
 
-<!-- Toggle button -->
-<div id="togglePanelBtn"></div>
+  <script>
+    /* MAP CONFIG */
+    const PATH = "data/nyc_acs_income_internet_2023_tracts.geojson";
+    const FIELD = "pct_no_internet";
 
-<!-- Overlay panel -->
-<!-- <div id="panel">
-  <div style="font-weight:700;margin-bottom:6px;">
-    Households w/o Internet (%)
-  </div>
+    const map = L.map("map", {
+      zoomControl: true,
+      preferCanvas: true,
+      attributionControl: false // remove built-in attribution box
+    }).setView([40.73, -73.93], 12);
 
-  <label>
-    <input id="cbNoNet" type="checkbox">
-    Show layer
-  </label>
+    // Disable scroll zoom (page-friendly)
+    map.scrollWheelZoom.disable();
+    map.doubleClickZoom.disable();
+    map.boxZoom.disable();
 
-  <div style="margin-top:10px;display:flex;justify-content:space-between;">
-    <span>Opacity</span>
-    <span id="lblNoNet">1.0</span>
-  </div>
-  <input id="opNoNet" type="range" min="0" max="1" step="0.05" value="1.0"/>
+    // CartoDB Positron basemap
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      {
+        subdomains: "abcd",
+        maxZoom: 20
+      }
+    ).addTo(map);
 
-  <div style="margin-top:12px;font-weight:600;">Legend</div>
-  <div><span class="sw" style="background:#FFDA99"></span> 0–5%</div>
-  <div><span class="sw" style="background:#FFC04C"></span> 5–10%</div>
-  <div><span class="sw" style="background:#FFA500"></span> 10–15%</div>
-  <div><span class="sw" style="background:#FF6800"></span> 15–20%</div>
-  <div><span class="sw" style="background:#FF0000"></span> 20%+</div>
+    map.createPane("pane-nointernet");
+    map.getPane("pane-nointernet").style.zIndex = 410;
 
-  <div style="font-size:12px;color:#666;margin-top:10px;">
-    Source: ACS 2019–2023
-  </div>
-</div> -->
+    let layer = null;
+    let opacity = 1.0;
 
-<script>
-  /* PANEL TOGGLE */
-  const panel = document.getElementById("panel");
-  const btn = document.getElementById("togglePanelBtn");
-
-  btn.addEventListener("click", () => {
-    panel.classList.toggle("closed");
-  });
-
-  /* MAP CONFIG */
-  const PATH = "data/nyc_acs_income_internet_2023_tracts.geojson";
-  const FIELD = "pct_no_internet";
-
-  const map = L.map("map", {
-    zoomControl: true,
-    preferCanvas: true,
-    attributionControl: false   // REMOVE BUILT-IN KEY
-  }).setView([40.73, -73.93], 12); // START ZOOMED IN
-
-  // Disable scroll zoom (page-friendly)
-  map.scrollWheelZoom.disable();
-  map.doubleClickZoom.disable();
-  map.boxZoom.disable();
-
-  // CartoDB Positron basemap
-  L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    {
-      subdomains: "abcd",
-      maxZoom: 20
+    function colorNoInternet(p) {
+      if (p >= 20) return "#FF0000";
+      if (p >= 15) return "#FF6800";
+      if (p >= 10) return "#FFA500";
+      if (p >= 5)  return "#FFC04C";
+      return "#FFDA99";
     }
-  ).addTo(map);
 
-  map.createPane("pane-nointernet");
-  map.getPane("pane-nointernet").style.zIndex = 410;
+    function style(f) {
+      const v = f.properties[FIELD];
+      return {
+        pane: "pane-nointernet",
+        color: "#555",
+        weight: 0.6,
+        fill: true,
+        fillOpacity: opacity,
+        fillColor: colorNoInternet(+v),
+        interactive: true 
+      };
+    }
 
-  let layer = null;
-  let opacity = 1.0;
+    function formatPct(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toFixed(1) : "N/A";
+    }
 
-  function colorNoInternet(p) {
-    if (p >= 20) return "#FF0000";
-    if (p >= 15) return "#FF6800";
-    if (p >= 10) return "#FFA500";
-    if (p >= 5)  return "#FFC04C";
-    return "#FFDA99";
-  }
+    function bestTractLabel(p) {
+      // Use whatever your GeoJSON actually has. Common candidates:
+      // - NAME
+      // - tract
+      // - GEOID / geoid
+      return p.NAME || p.tract || p.GEOID || p.geoid || "Census Tract";
+    }
 
-  function style(f) {
-    const v = f.properties[FIELD];
-    return {
-      pane: "pane-nointernet",
-      color: "#555",
-      weight: 0.6,
-      fill: true,
-      fillOpacity: opacity,
-      fillColor: colorNoInternet(+v),
-      interactive: false
-    };
-  }
+    fetch(PATH)
+      .then(r => r.json())
+      .then(fc => {
+        layer = L.geoJSON(fc, {
+          style,
+          onEachFeature: (feature, lyr) => {
+            const p = feature.properties || {};
+            const tractLabel = bestTractLabel(p);
+            const pct = p[FIELD];
 
-  fetch(PATH)
-    .then(r => r.json())
-    .then(fc => {
-      layer = L.geoJSON(fc, { style }).addTo(map);
+            // Hover highlight (optional but recommended)
+            lyr.on("mouseover", () => {
+              lyr.setStyle({ weight: 1.2, color: "#000" });
+              // bring to front so borders look crisp
+              if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                lyr.bringToFront();
+              }
+            });
+
+            lyr.on("mouseout", () => {
+              lyr.setStyle({ weight: 0.6, color: "#555" });
+            });
+
+            // Click popup
+            lyr.on("click", (e) => {
+              const pctTxt = formatPct(pct);
+
+              L.popup({
+                closeButton: true,
+                offset: [0, -6]
+              })
+                .setLatLng(e.latlng)
+                .setContent(`
+                  <div style="font:14px system-ui,sans-serif; line-height:1.25;">
+                    <div style="font-weight:700; margin-bottom:6px;">
+                      ${tractLabel}
+                    </div>
+                    <div>
+                      <strong>${pctTxt}%</strong> of households<br/>
+                      without internet access
+                    </div>
+                    <div style="margin-top:8px; font-size:12px; color:#666;">
+                      Source: ACS 2019–2023
+                    </div>
+                  </div>
+                `)
+                .openOn(map);
+            });
+          }
+        }).addTo(map);
+      })
+      .catch(err => {
+        console.error("Failed to load GeoJSON:", err);
+      });
+
+    // Button is kept; you can wire it to an info panel later if you want
+    const btn = document.getElementById("togglePanelBtn");
+    btn.addEventListener("click", () => {
+      // simple affordance: show a quick hint
+      L.popup({ closeButton: true, offset: [0, -6] })
+        .setLatLng(map.getCenter())
+        .setContent(`
+          <div style="font:14px system-ui,sans-serif">
+            Click a tract to see details.
+          </div>
+        `)
+        .openOn(map);
     });
-
-  /* CONTROLS */
-  const slider = document.getElementById("opNoNet");
-  const label = document.getElementById("lblNoNet");
-
-  slider.addEventListener("input", () => {
-    opacity = parseFloat(slider.value);
-    label.textContent = slider.value;
-    if (layer) layer.setStyle({ fillOpacity: opacity });
-  });
-
-  document.getElementById("cbNoNet").addEventListener("change", e => {
-    if (e.target.checked) map.addLayer(layer);
-    else map.removeLayer(layer);
-  });
-</script>
-
+  </script>
 </body>
 </html>

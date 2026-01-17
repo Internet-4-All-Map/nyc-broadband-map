@@ -214,24 +214,29 @@ const layer = L.geoJSON(assetsFC, {
       opacity: Math.max(opacity, 0.2)
     });
 
-    const props = f.properties;
+const props = f.properties;
 
-    const fiberLabel =
-      raw === "Y" ? "Yes" :
-      raw === "N" ? "No" :
-      "Unknown";
+const fiberLabel =
+  raw === "Y" ? "Yes" :
+  raw === "N" ? "No" :
+  "Unknown";
 
-    const popupHTML = `
-      <div style="font:14px system-ui;">
-        <div style="font-weight:700;margin-bottom:6px;">
-          Public Asset
-        </div>
-        <div><b>Fiber connected:</b> ${fiberLabel}</div>
-        ${props.agency ? `<div><b>Agency:</b> ${props.agency}</div>` : ""}
-        ${props.asset_type ? `<div><b>Type:</b> ${props.asset_type}</div>` : ""}
+const popupHTML = `
+  <div style="font:14px system-ui;">
+    ${props.name ? `
+      <div style="font-weight:700;font-size:15px;margin-bottom:6px;">
+        ${props.asset_name}
       </div>
-    `;
-
+    ` : `
+      <div style="font-weight:700;font-size:15px;margin-bottom:6px;">
+        Public Asset
+      </div>
+    `}
+    <div><b>Fiber connected:</b> ${fiberLabel}</div>
+    ${props.agency ? `<div><b>Agency:</b> ${props.agency}</div>` : ""}
+    ${props.asset_type ? `<div><b>Type:</b> ${props.asset_type}</div>` : ""}
+  </div>
+`;
     marker.bindPopup(popupHTML, {
       closeButton: true,
       maxWidth: 260

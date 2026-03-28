@@ -1,12 +1,18 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>NYC City Council Districts – Internet Access</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"
+  />
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
@@ -16,8 +22,8 @@
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #fff;
       font-family: system-ui, sans-serif;
+      background: #fff;
     }
 
     #map {
@@ -26,31 +32,76 @@
       background: #fff;
     }
 
-    #togglePanelBtn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      z-index: 11000;
-      background: #fff;
-      border-radius: 50%;
-      width: 46px;
-      height: 46px;
+    .legend-box {
+      background: rgba(255, 255, 255, 0.96);
+      padding: 10px 12px;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+      line-height: 1.3;
+      min-width: 180px;
+    }
+
+    .legend-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .legend-item {
       display: flex;
       align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 10px rgba(0,0,0,.25);
-      cursor: pointer;
-      font-size: 22px;
-      user-select: none;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+
+    .legend-swatch {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      border: 1px solid #bdbdbd;
+      box-sizing: border-box;
+      flex: 0 0 16px;
+    }
+
+    .leaflet-popup-content {
+      margin: 12px 14px;
+    }
+
+    .popup-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .popup-row {
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .popup-source {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #666;
+      line-height: 1.35;
+    }
+
+    .leaflet-control-geocoder {
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+      border: none;
+    }
+
+    .leaflet-control-geocoder-form input {
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="togglePanelBtn" title="Info">i</div>
 
   <script>
-    const PATH = "data/nyc_council_districts_enriched.geojson";
+    const PATH = "data/nyc_council_districts_internet.geojson";
     const FIELD = "no_internet_pct";
 
     const map = L.map("map", {
@@ -67,57 +118,107 @@
       }
     ).addTo(map);
 
+    let districtLayer = null;
     let searchMarker = null;
-    let layer = null;
-    let opacity = 0.85;
+    let selectedDistrictLayer = null;
 
     function colorNoInternet(p) {
       if (p >= 25) return "#b10026";
       if (p >= 20) return "#e31a1c";
       if (p >= 15) return "#fc4e2a";
       if (p >= 10) return "#fd8d3c";
-      if (p >= 5)  return "#feb24c";
+      if (p >= 5) return "#feb24c";
       return "#fed976";
     }
 
-    function style(feature) {
+    function getDistrictStyle(feature) {
       const v = Number(feature.properties?.[FIELD]);
       return {
-        color: "#444",
+        color: "#555",
         weight: 1,
-        fill: true,
-        fillOpacity: opacity,
+        opacity: 1,
         fillColor: colorNoInternet(v),
-        interactive: true
+        fillOpacity: 0.82
+      };
+    }
+
+    function getHoverStyle(feature) {
+      const v = Number(feature.properties?.[FIELD]);
+      return {
+        color: "#111",
+        weight: 2,
+        opacity: 1,
+        fillColor: colorNoInternet(v),
+        fillOpacity: 0.92
+      };
+    }
+
+    function getSelectedStyle(feature) {
+      const v = Number(feature.properties?.[FIELD]);
+      return {
+        color: "#111",
+        weight: 3,
+        opacity: 1,
+        fillColor: colorNoInternet(v),
+        fillOpacity: 0.95
       };
     }
 
     function formatPct(v) {
       const n = Number(v);
-      return Number.isFinite(n) ? n.toFixed(1) : "N/A";
+      return Number.isFinite(n) ? `${n.toFixed(1)}%` : "N/A";
     }
 
     function districtLabel(props) {
-      const district = props.district_num ?? "N/A";
-      const borough = props.Borough ?? "";
-      return `Council District ${district}${borough ? `, ${borough}` : ""}`;
+      const district = props?.district_num ?? "N/A";
+      const borough = props?.Borough ? `, ${props.Borough}` : "";
+      return `Council District ${district}${borough}`;
+    }
+
+    function buildPopupContent(props, titleOverride) {
+      return `
+        <div>
+          <div class="popup-title">${titleOverride || districtLabel(props)}</div>
+          <div class="popup-row"><strong>Member:</strong> ${props.Member ?? "N/A"}</div>
+          <div class="popup-row"><strong>Party:</strong> ${props.Party ?? "N/A"}</div>
+          <div class="popup-row"><strong>No internet:</strong> ${formatPct(props.no_internet_pct)}</div>
+          <div class="popup-row"><strong>Tier:</strong> ${props.no_internet_tier ?? "N/A"}</div>
+          <div class="popup-source">${props._internet_source ?? ""}</div>
+        </div>
+      `;
+    }
+
+    function clearSelectedDistrict() {
+      if (selectedDistrictLayer) {
+        districtLayer.resetStyle(selectedDistrictLayer);
+        selectedDistrictLayer = null;
+      }
+    }
+
+    function setSelectedDistrict(layer) {
+      clearSelectedDistrict();
+      selectedDistrictLayer = layer;
+      selectedDistrictLayer.setStyle(getSelectedStyle(selectedDistrictLayer.feature));
+      if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+        selectedDistrictLayer.bringToFront();
+      }
     }
 
     function pointInLayer(latlng) {
-      let matchedFeature = null;
+      let matchedLayer = null;
 
-      layer.eachLayer(function (districtLayer) {
-        if (matchedFeature) return;
+      districtLayer.eachLayer(function (layer) {
+        if (matchedLayer) return;
 
-        const geom = districtLayer.feature?.geometry;
+        const geom = layer.feature?.geometry;
         if (!geom) return;
 
         if (isLatLngInsideGeometry(latlng, geom)) {
-          matchedFeature = districtLayer.feature;
+          matchedLayer = layer;
         }
       });
 
-      return matchedFeature;
+      return matchedLayer;
     }
 
     function isLatLngInsideGeometry(latlng, geometry) {
@@ -138,8 +239,8 @@
     function polygonContainsPoint(rings, x, y) {
       if (!rings || !rings.length) return false;
 
-      const insideOuter = pointInRing(rings[0], x, y);
-      if (!insideOuter) return false;
+      const inOuter = pointInRing(rings[0], x, y);
+      if (!inOuter) return false;
 
       for (let i = 1; i < rings.length; i++) {
         if (pointInRing(rings[i], x, y)) return false;
@@ -152,12 +253,14 @@
       let inside = false;
 
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const xi = ring[i][0], yi = ring[i][1];
-        const xj = ring[j][0], yj = ring[j][1];
+        const xi = ring[i][0];
+        const yi = ring[i][1];
+        const xj = ring[j][0];
+        const yj = ring[j][1];
 
         const intersect =
           ((yi > y) !== (yj > y)) &&
-          (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+          (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-12) + xi);
 
         if (intersect) inside = !inside;
       }
@@ -166,99 +269,123 @@
     }
 
     fetch(PATH)
-      .then(r => r.json())
+      .then(response => response.json())
       .then(fc => {
-        layer = L.geoJSON(fc, {
-          style,
-          onEachFeature: (feature, lyr) => {
-            const p = feature.properties || {};
+        districtLayer = L.geoJSON(fc, {
+          style: getDistrictStyle,
+          onEachFeature: (feature, layer) => {
+            const props = feature.properties || {};
 
-            lyr.on("mouseover", () => {
-              lyr.setStyle({ weight: 2, color: "#111" });
+            layer.on("mouseover", () => {
+              if (layer !== selectedDistrictLayer) {
+                layer.setStyle(getHoverStyle(feature));
+              }
               if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                lyr.bringToFront();
+                layer.bringToFront();
               }
             });
 
-            lyr.on("mouseout", () => {
-              lyr.setStyle({ weight: 1, color: "#444" });
+            layer.on("mouseout", () => {
+              if (layer === selectedDistrictLayer) {
+                layer.setStyle(getSelectedStyle(feature));
+              } else {
+                districtLayer.resetStyle(layer);
+              }
             });
 
-            lyr.on("click", (e) => {
+            layer.on("click", e => {
+              setSelectedDistrict(layer);
+
               L.popup({ maxWidth: 320 })
                 .setLatLng(e.latlng)
-                .setContent(`
-                  <div style="font:14px system-ui,sans-serif; line-height:1.35;">
-                    <div style="font-weight:700; margin-bottom:6px;">
-                      ${districtLabel(p)}
-                    </div>
-                    <div><strong>Member:</strong> ${p.Member ?? "N/A"}</div>
-                    <div><strong>Party:</strong> ${p.Party ?? "N/A"}</div>
-                    <div><strong>No internet:</strong> ${formatPct(p.no_internet_pct)}%</div>
-                    <div><strong>Tier:</strong> ${p.no_internet_tier ?? "N/A"}</div>
-                    <div style="margin-top:8px; font-size:12px; color:#666;">
-                      ${p._internet_source ?? ""}
-                    </div>
-                  </div>
-                `)
+                .setContent(buildPopupContent(props))
                 .openOn(map);
             });
           }
         }).addTo(map);
 
-        map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+        map.fitBounds(districtLayer.getBounds(), { padding: [20, 20] });
+      })
+      .catch(err => {
+        console.error("Failed to load GeoJSON:", err);
       });
 
-    // ADDRESS SEARCH
     const geocoder = L.Control.geocoder({
       defaultMarkGeocode: false,
+      position: "topleft",
       placeholder: "Search NYC address...",
       errorMessage: "Address not found"
     })
-    .on("markgeocode", function(e) {
-      const center = e.geocode.center;
+      .on("markgeocode", function (e) {
+        const center = e.geocode.center;
 
-      map.setView(center, 15);
+        map.setView(center, 15);
 
-      if (searchMarker) {
-        map.removeLayer(searchMarker);
-      }
+        if (searchMarker) {
+          map.removeLayer(searchMarker);
+        }
 
-      searchMarker = L.marker(center).addTo(map);
+        searchMarker = L.marker(center).addTo(map);
 
-      const matched = layer ? pointInLayer(center) : null;
-      const props = matched?.properties;
+        const matchedLayer = districtLayer ? pointInLayer(center) : null;
+        const matchedProps = matchedLayer?.feature?.properties || null;
 
-      searchMarker.bindPopup(`
-        <div style="font:14px system-ui,sans-serif; line-height:1.35;">
-          <div style="font-weight:700; margin-bottom:6px;">${e.geocode.name}</div>
-          ${
-            props
-              ? `
-                <div><strong>District:</strong> ${props.district_num ?? "N/A"}</div>
-                <div><strong>Member:</strong> ${props.Member ?? "N/A"}</div>
-                <div><strong>Borough:</strong> ${props.Borough ?? "N/A"}</div>
-                <div><strong>No internet:</strong> ${formatPct(props.no_internet_pct)}%</div>
-                <div><strong>Tier:</strong> ${props.no_internet_tier ?? "N/A"}</div>
-              `
-              : `<div>Address found, but no matching district polygon was detected.</div>`
-          }
-        </div>
-      `).openPopup();
-    })
-    .addTo(map);
+        if (matchedLayer) {
+          setSelectedDistrict(matchedLayer);
+        } else {
+          clearSelectedDistrict();
+        }
 
-    document.getElementById("togglePanelBtn").addEventListener("click", () => {
-      L.popup()
-        .setLatLng(map.getCenter())
-        .setContent(`
-          <div style="font:14px system-ui,sans-serif; line-height:1.35;">
-            <strong>NYC City Council Districts</strong><br/>
-            Search an address or click a district.
+        const popupHtml = matchedProps
+          ? `
+            <div>
+              <div class="popup-title">${e.geocode.name}</div>
+              <div class="popup-row"><strong>District:</strong> ${matchedProps.district_num ?? "N/A"}</div>
+              <div class="popup-row"><strong>Member:</strong> ${matchedProps.Member ?? "N/A"}</div>
+              <div class="popup-row"><strong>Borough:</strong> ${matchedProps.Borough ?? "N/A"}</div>
+              <div class="popup-row"><strong>No internet:</strong> ${formatPct(matchedProps.no_internet_pct)}</div>
+              <div class="popup-row"><strong>Tier:</strong> ${matchedProps.no_internet_tier ?? "N/A"}</div>
+            </div>
+          `
+          : `
+            <div>
+              <div class="popup-title">${e.geocode.name}</div>
+              <div class="popup-row">Address found, but no district match was detected.</div>
+            </div>
+          `;
+
+        searchMarker.bindPopup(popupHtml).openPopup();
+      })
+      .addTo(map);
+
+    const legend = L.control({ position: "bottomright" });
+
+    legend.onAdd = function () {
+      const div = L.DomUtil.create("div", "legend-box");
+
+      const ranges = [
+        { label: "< 5%", color: colorNoInternet(0) },
+        { label: "5% – < 10%", color: colorNoInternet(6) },
+        { label: "10% – < 15%", color: colorNoInternet(11) },
+        { label: "15% – < 20%", color: colorNoInternet(16) },
+        { label: "20% – < 25%", color: colorNoInternet(21) },
+        { label: "25%+", color: colorNoInternet(26) }
+      ];
+
+      div.innerHTML = `
+        <div class="legend-title">No Internet (%)</div>
+        ${ranges.map(item => `
+          <div class="legend-item">
+            <span class="legend-swatch" style="background:${item.color};"></span>
+            <span>${item.label}</span>
           </div>
-        `)
-        .openOn(map);
-    });
+        `).join("")}
+      `;
+
+      return div;
+    };
+
+    legend.addTo(map);
   </script>
 </body>
 </html>
